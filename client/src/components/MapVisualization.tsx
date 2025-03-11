@@ -93,70 +93,120 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
     }
   };
   
-  // Simplified mouse hover handling
+  // Simplified mouse hover handling with property name detection
   const handleMouseEnter = (geo: any) => {
-    const { properties } = geo;
-    const stateId = properties.postal;
-    const stateData = getStateData(stateId);
-    
-    console.log("State hover:", stateId, stateData);
-    
-    if (stateData) {
-      // Create tooltip content
-      setTooltipContent(
-        <div className="font-sans">
-          <div className="font-bold text-[#2C3E50]" style={{ fontFamily: '"IBM Plex Sans", sans-serif' }}>
-            {stateData.stateName}
-          </div>
-          <div className="text-sm mt-1">
-            Total Count: <span className="font-semibold">{stateData.count.toLocaleString()}</span>
-          </div>
-          <div className="text-sm">
-            Rate: <span className="font-semibold">{stateData.rate} per 1,000 women</span>
-          </div>
-          <div className="text-sm">
-            YoY Change: <span className={`font-semibold ${parseFloat(stateData.change.toString()) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {parseFloat(stateData.change.toString()) >= 0 ? '+' : ''}{stateData.change}%
-            </span>
-          </div>
-          <div className="text-sm mt-1">
-            Status: <span className="font-semibold">{stateData.status}</span>
-          </div>
-        </div>
-      );
-      
-      // Use current mouse position from global event
-      const updateTooltipPosition = (e: MouseEvent) => {
-        setTooltipPosition({ 
-          x: e.clientX + 10,  // Offset slightly to not cover the cursor
-          y: e.clientY + 10
-        });
-      };
-      
-      // Add a global mousemove listener
-      document.addEventListener('mousemove', updateTooltipPosition);
-      
-      // Get initial position from current mouse position or use a default position
-      if (window.event) {
-        updateTooltipPosition(window.event as MouseEvent);
-      } else {
-        // If window.event is not available, set a default position
-        setTooltipPosition({ x: 100, y: 100 });
+    try {
+      // First check if geo exists and has properties
+      if (!geo || !geo.properties) {
+        console.warn("Invalid geography on hover");
+        return;
       }
       
-      // Make tooltip visible
-      setTooltipVisible(true);
+      const props = geo.properties;
+      console.log("Hover props:", props);
       
-      // Clean up the event listener when mouse leaves
-      setTimeout(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-          updateTooltipPosition(e);
+      // Try various property names for state ID
+      let stateId = null;
+      
+      if (props.postal) stateId = props.postal;
+      else if (props.STUSPS) stateId = props.STUSPS;
+      else if (props.STATE_ABBR) stateId = props.STATE_ABBR;
+      else if (props.state) stateId = props.state;
+      else if (props.abbr) stateId = props.abbr;
+      
+      // Special case for some GeoJSON formats - use the name to map to state code
+      if (!stateId && props.name) {
+        const stateName = props.name;
+        const stateMap: {[key: string]: string} = {
+          "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+          "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
+          "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+          "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+          "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
+          "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+          "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
+          "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+          "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
+          "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY"
         };
         
-        // Store the event listener to remove it on mouse leave
-        (window as any).currentTooltipMoveHandler = handleMouseMove;
-        document.addEventListener('mousemove', handleMouseMove);
-      }, 0);
+        if (stateMap[stateName]) {
+          stateId = stateMap[stateName];
+          console.log(`Mapped state name "${stateName}" to code "${stateId}"`);
+        }
+      }
+      
+      if (!stateId) {
+        console.warn("Couldn't find state ID in properties:", props);
+        return;
+      }
+      
+      console.log("Using state ID:", stateId);
+      const stateData = getStateData(stateId);
+      
+      console.log("State hover:", stateId, stateData);
+      
+      if (stateData) {
+        // Create tooltip content
+        setTooltipContent(
+          <div className="font-sans">
+            <div className="font-bold text-[#2C3E50]" style={{ fontFamily: '"IBM Plex Sans", sans-serif' }}>
+              {stateData.stateName}
+            </div>
+            <div className="text-sm mt-1">
+              Total Count: <span className="font-semibold">{stateData.count.toLocaleString()}</span>
+            </div>
+            <div className="text-sm">
+              Rate: <span className="font-semibold">{stateData.rate} per 1,000 women</span>
+            </div>
+            <div className="text-sm">
+              YoY Change: <span className={`font-semibold ${parseFloat(stateData.change.toString()) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {parseFloat(stateData.change.toString()) >= 0 ? '+' : ''}{stateData.change}%
+              </span>
+            </div>
+            <div className="text-sm mt-1">
+              Status: <span className="font-semibold">{stateData.status}</span>
+            </div>
+          </div>
+        );
+        
+        // Use current mouse position from global event
+        const updateTooltipPosition = (e: MouseEvent) => {
+          setTooltipPosition({ 
+            x: e.clientX + 10,  // Offset slightly to not cover the cursor
+            y: e.clientY + 10
+          });
+        };
+        
+        // Add a global mousemove listener
+        document.addEventListener('mousemove', updateTooltipPosition);
+        
+        // Get initial position from current mouse position or use a default position
+        if (window.event) {
+          updateTooltipPosition(window.event as MouseEvent);
+        } else {
+          // If window.event is not available, set a default position
+          setTooltipPosition({ x: 100, y: 100 });
+        }
+        
+        // Make tooltip visible
+        setTooltipVisible(true);
+        
+        // Clean up the event listener when mouse leaves
+        setTimeout(() => {
+          const handleMouseMove = (e: MouseEvent) => {
+            updateTooltipPosition(e);
+          };
+          
+          // Store the event listener to remove it on mouse leave
+          (window as any).currentTooltipMoveHandler = handleMouseMove;
+          document.addEventListener('mousemove', handleMouseMove);
+        }, 0);
+      } else {
+        console.warn(`No tooltip data available for ${stateId || 'unknown state'}`);
+      }
+    } catch (error) {
+      console.error("Error in handleMouseEnter:", error);
     }
   };
   
@@ -169,15 +219,67 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
     setTooltipVisible(false);
   };
   
-  // Handle state click for detailed view with debugging
+  // Handle state click for detailed view with deep debugging
   const handleStateClick = (geo: any) => {
     console.log("State clicked:", geo);
     
     try {
-      const { properties } = geo;
-      const stateId = properties.postal;
-      console.log("State ID:", stateId);
+      // First check if geo exists and has properties
+      if (!geo || !geo.properties) {
+        console.warn("Invalid geography clicked");
+        return;
+      }
       
+      const { properties } = geo;
+      
+      // DEBUG: Log all properties to find the correct state ID property
+      console.log("All properties:", properties);
+      
+      // Try various property names for state ID
+      let stateId = null;
+      
+      if (properties.postal) {
+        stateId = properties.postal;
+      } else if (properties.STUSPS) {
+        stateId = properties.STUSPS;
+      } else if (properties.STATE_ABBR) {
+        stateId = properties.STATE_ABBR;
+      } else if (properties.state) {
+        stateId = properties.state;
+      } else if (properties.abbr) {
+        stateId = properties.abbr;
+      }
+      
+      // Special case for some GeoJSON formats - use the name to map to state code
+      if (!stateId && properties.name) {
+        const stateName = properties.name;
+        const stateMap: {[key: string]: string} = {
+          "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+          "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
+          "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+          "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+          "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
+          "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+          "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
+          "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+          "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
+          "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY"
+        };
+        
+        if (stateMap[stateName]) {
+          stateId = stateMap[stateName];
+          console.log(`Mapped state name "${stateName}" to code "${stateId}" for click`);
+        }
+      }
+      
+      if (!stateId) {
+        console.warn("Could not find state ID in properties:", properties);
+        return;
+      }
+      
+      console.log("Found State ID:", stateId);
+      
+      // Find the state data
       const stateData = getStateData(stateId);
       console.log("State data:", stateData);
       
@@ -193,7 +295,7 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
         // Use window.alert to ensure it's the browser's native alert
         window.alert(message);
       } else {
-        console.error("No state data found for:", stateId);
+        console.warn(`No data available for ${stateId || 'unknown state'}`);
       }
     } catch (error) {
       console.error("Error in handleStateClick:", error);
@@ -335,8 +437,48 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
             <Geographies geography={geoUrl}>
               {({ geographies }) =>
                 geographies.map(geo => {
-                  const stateId = geo.properties.postal;
-                  const stateData = getStateData(stateId);
+                  // Debug: Log the first few geo objects
+                  if (!(window as any).geoLogShown) {
+                    console.log("GEO OBJECT SAMPLE:", geo);
+                    (window as any).geoLogShown = true;
+                  }
+                  
+                  // Try various property names for state ID
+                  let stateId = null;
+                  const props = geo.properties;
+                  
+                  // US Atlas uses 'name' for the state name and postal for the abbr
+                  if (props.name && props.postal) {
+                    console.log(`State name: ${props.name}, postal: ${props.postal}`);
+                  }
+                  
+                  if (props.postal) stateId = props.postal;
+                  else if (props.STUSPS) stateId = props.STUSPS;
+                  else if (props.STATE_ABBR) stateId = props.STATE_ABBR;
+                  else if (props.state) stateId = props.state;
+                  else if (props.abbr) stateId = props.abbr;
+                  
+                  // Special case for some GeoJSON formats
+                  if (props.name) {
+                    const stateName = props.name;
+                    const stateMap: {[key: string]: string} = {
+                      "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+                      "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
+                      "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+                      "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+                      "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
+                      "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+                      "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
+                      "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+                      "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
+                      "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY"
+                    };
+                    if (stateMap[stateName]) {
+                      stateId = stateMap[stateName];
+                    }
+                  }
+                  
+                  const stateData = stateId ? getStateData(stateId) : null;
                   
                   // Determine fill color based on data view
                   let fillColor = "#EDF8E9"; // Default light color
