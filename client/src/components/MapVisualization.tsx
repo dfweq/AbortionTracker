@@ -93,11 +93,13 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
     }
   };
   
-  // Handle geography hover
-  const handleMouseEnter = (geo: any, event: any) => {
+  // Simplified mouse hover handling
+  const handleMouseEnter = (geo: any) => {
     const { properties } = geo;
     const stateId = properties.postal;
     const stateData = getStateData(stateId);
+    
+    console.log("State hover:", stateId, stateData);
     
     if (stateData) {
       // Create tooltip content
@@ -123,36 +125,78 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
         </div>
       );
       
-      // Fixed positioning - use the native event from the mouse event
-      // Get the position based on mouse coordinates
-      if (event && event.pageX) {
-        setTooltipPosition({
-          x: event.pageX - 150, // Center tooltip near cursor
-          y: event.pageY - 150  // Position above cursor
+      // Use current mouse position from global event
+      const updateTooltipPosition = (e: MouseEvent) => {
+        setTooltipPosition({ 
+          x: e.clientX + 10,  // Offset slightly to not cover the cursor
+          y: e.clientY + 10
         });
-        setTooltipVisible(true);
+      };
+      
+      // Add a global mousemove listener
+      document.addEventListener('mousemove', updateTooltipPosition);
+      
+      // Get initial position from current mouse position or use a default position
+      if (window.event) {
+        updateTooltipPosition(window.event as MouseEvent);
+      } else {
+        // If window.event is not available, set a default position
+        setTooltipPosition({ x: 100, y: 100 });
       }
+      
+      // Make tooltip visible
+      setTooltipVisible(true);
+      
+      // Clean up the event listener when mouse leaves
+      setTimeout(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+          updateTooltipPosition(e);
+        };
+        
+        // Store the event listener to remove it on mouse leave
+        (window as any).currentTooltipMoveHandler = handleMouseMove;
+        document.addEventListener('mousemove', handleMouseMove);
+      }, 0);
     }
   };
   
   const handleMouseLeave = () => {
+    // Clean up event listener if it exists
+    if ((window as any).currentTooltipMoveHandler) {
+      document.removeEventListener('mousemove', (window as any).currentTooltipMoveHandler);
+      (window as any).currentTooltipMoveHandler = null;
+    }
     setTooltipVisible(false);
   };
   
-  // Handle state click for detailed view
+  // Handle state click for detailed view with debugging
   const handleStateClick = (geo: any) => {
-    const { properties } = geo;
-    const stateId = properties.postal;
-    const stateData = getStateData(stateId);
+    console.log("State clicked:", geo);
     
-    if (stateData) {
-      // Here we could navigate to a detailed state view or show a modal
-      // For now, we'll just display an alert with the state info
-      alert(`Detailed statistics for ${stateData.stateName}:\n` +
-            `Total Count: ${stateData.count.toLocaleString()}\n` +
-            `Rate per 1,000 women: ${stateData.rate}\n` +
-            `Year-over-Year Change: ${stateData.change}%\n` +
-            `Legal Status: ${stateData.status}`);
+    try {
+      const { properties } = geo;
+      const stateId = properties.postal;
+      console.log("State ID:", stateId);
+      
+      const stateData = getStateData(stateId);
+      console.log("State data:", stateData);
+      
+      if (stateData) {
+        // Create message with all state data properties
+        const message = `Detailed statistics for ${stateData.stateName}:\n` +
+              `Total Count: ${stateData.count.toLocaleString()}\n` +
+              `Rate per 1,000 women: ${stateData.rate}\n` +
+              `Year-over-Year Change: ${stateData.change}%\n` +
+              `Legal Status: ${stateData.status}`;
+        
+        console.log("Showing alert with message:", message);
+        // Use window.alert to ensure it's the browser's native alert
+        window.alert(message);
+      } else {
+        console.error("No state data found for:", stateId);
+      }
+    } catch (error) {
+      console.error("Error in handleStateClick:", error);
     }
   };
 
@@ -319,7 +363,7 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
                         hover: { outline: "none", fill: fillColor, opacity: 0.8, cursor: "pointer" },
                         pressed: { outline: "none", cursor: "pointer" }
                       }}
-                      onMouseEnter={(event) => handleMouseEnter(geo, event)}
+                      onMouseEnter={() => handleMouseEnter(geo)}
                       onMouseLeave={handleMouseLeave}
                       onClick={() => handleStateClick(geo)}
                     />
