@@ -123,11 +123,15 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
         </div>
       );
       
-      // Set tooltip position
-      setTooltipPosition({
-        x: event.clientX + 10,
-        y: event.clientY - 28
-      });
+      // Get bounding rect of the map container to adjust coordinates
+      const mapRect = mapContainerRef.current?.getBoundingClientRect();
+      if (mapRect) {
+        // Set tooltip position relative to the map container
+        setTooltipPosition({
+          x: event.clientX - mapRect.left,
+          y: event.clientY - mapRect.top
+        });
+      }
       
       setTooltipVisible(true);
     }
@@ -302,8 +306,8 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
               className="absolute p-2.5 bg-white border border-gray-200 rounded shadow-lg z-50 max-w-[300px]"
               style={{
                 left: `${tooltipPosition.x}px`,
-                top: `${tooltipPosition.y}px`,
-                transform: 'translate(0, -100%)',
+                top: `${tooltipPosition.y - 10}px`,
+                pointerEvents: 'none',
                 opacity: 1
               }}
             >

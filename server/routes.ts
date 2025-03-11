@@ -49,6 +49,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get overall summary statistics - must be placed before the :stateId route to avoid being caught by it
+  apiRouter.get("/abortion-stats/summary", async (_req: Request, res: Response) => {
+    try {
+      const stats = calculateStatistics();
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to calculate summary statistics" });
+    }
+  });
+  
   // Get abortion statistics by state ID
   apiRouter.get("/abortion-stats/:stateId", async (req: Request, res: Response) => {
     try {
@@ -62,16 +72,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stat);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch state abortion statistics" });
-    }
-  });
-
-  // Get overall summary statistics
-  apiRouter.get("/abortion-stats/summary", async (_req: Request, res: Response) => {
-    try {
-      const stats = calculateStatistics();
-      res.json(stats);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to calculate summary statistics" });
     }
   });
 
