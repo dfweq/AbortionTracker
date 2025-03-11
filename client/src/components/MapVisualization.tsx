@@ -94,7 +94,7 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
   };
   
   // Handle geography hover
-  const handleMouseEnter = (geo: any, event: React.MouseEvent) => {
+  const handleMouseEnter = (geo: any, event: any) => {
     const { properties } = geo;
     const stateId = properties.postal;
     const stateData = getStateData(stateId);
@@ -113,8 +113,8 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
             Rate: <span className="font-semibold">{stateData.rate} per 1,000 women</span>
           </div>
           <div className="text-sm">
-            YoY Change: <span className={`font-semibold ${stateData.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {stateData.change >= 0 ? '+' : ''}{stateData.change}%
+            YoY Change: <span className={`font-semibold ${parseFloat(stateData.change.toString()) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {parseFloat(stateData.change.toString()) >= 0 ? '+' : ''}{stateData.change}%
             </span>
           </div>
           <div className="text-sm mt-1">
@@ -123,17 +123,15 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
         </div>
       );
       
-      // Get bounding rect of the map container to adjust coordinates
-      const mapRect = mapContainerRef.current?.getBoundingClientRect();
-      if (mapRect) {
-        // Set tooltip position relative to the map container
+      // Fixed positioning - use the native event from the mouse event
+      // Get the position based on mouse coordinates
+      if (event && event.pageX) {
         setTooltipPosition({
-          x: event.clientX - mapRect.left,
-          y: event.clientY - mapRect.top
+          x: event.pageX - 150, // Center tooltip near cursor
+          y: event.pageY - 150  // Position above cursor
         });
+        setTooltipVisible(true);
       }
-      
-      setTooltipVisible(true);
     }
   };
   
@@ -141,17 +139,46 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
     setTooltipVisible(false);
   };
   
-  // Zoom controls
+  // Handle state click for detailed view
+  const handleStateClick = (geo: any) => {
+    const { properties } = geo;
+    const stateId = properties.postal;
+    const stateData = getStateData(stateId);
+    
+    if (stateData) {
+      // Here we could navigate to a detailed state view or show a modal
+      // For now, we'll just display an alert with the state info
+      alert(`Detailed statistics for ${stateData.stateName}:\n` +
+            `Total Count: ${stateData.count.toLocaleString()}\n` +
+            `Rate per 1,000 women: ${stateData.rate}\n` +
+            `Year-over-Year Change: ${stateData.change}%\n` +
+            `Legal Status: ${stateData.status}`);
+    }
+  };
+
+  // Zoom controls - with debugging
   const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.5, 4));
+    console.log("Zoom in clicked");
+    setZoom(prev => {
+      const newZoom = Math.min(prev + 0.5, 4);
+      console.log(`Zoom level changed from ${prev} to ${newZoom}`);
+      return newZoom;
+    });
   };
   
   const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.5, 0.5));
+    console.log("Zoom out clicked");
+    setZoom(prev => {
+      const newZoom = Math.max(prev - 0.5, 0.5);
+      console.log(`Zoom level changed from ${prev} to ${newZoom}`);
+      return newZoom;
+    });
   };
   
   const handleResetZoom = () => {
+    console.log("Reset zoom clicked");
     setZoom(1);
+    console.log("Zoom level reset to 1");
   };
   
   if (isLoading) {
@@ -209,27 +236,27 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
             Geographic Distribution
           </h3>
           <div className="flex items-center">
-            <button 
-              className="text-[#2C3E50] hover:text-opacity-80 p-1 rounded mr-2" 
+            <div 
+              className="text-[#2C3E50] hover:bg-gray-100 p-2 rounded mr-2 cursor-pointer"
               title="Zoom in"
               onClick={handleZoomIn}
             >
               <ZoomIn size={18} />
-            </button>
-            <button 
-              className="text-[#2C3E50] hover:text-opacity-80 p-1 rounded mr-2" 
+            </div>
+            <div 
+              className="text-[#2C3E50] hover:bg-gray-100 p-2 rounded mr-2 cursor-pointer"
               title="Zoom out"
               onClick={handleZoomOut}
             >
               <ZoomOut size={18} />
-            </button>
-            <button 
-              className="text-[#2C3E50] hover:text-opacity-80 p-1 rounded" 
+            </div>
+            <div 
+              className="text-[#2C3E50] hover:bg-gray-100 p-2 rounded cursor-pointer"
               title="Reset view"
               onClick={handleResetZoom}
             >
               <Minimize size={18} />
-            </button>
+            </div>
           </div>
         </div>
         
@@ -288,12 +315,13 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
                       stroke="#FFFFFF"
                       strokeWidth={0.5}
                       style={{
-                        default: { outline: "none" },
-                        hover: { outline: "none", fill: fillColor, opacity: 0.8 },
-                        pressed: { outline: "none" }
+                        default: { outline: "none", cursor: "pointer" },
+                        hover: { outline: "none", fill: fillColor, opacity: 0.8, cursor: "pointer" },
+                        pressed: { outline: "none", cursor: "pointer" }
                       }}
                       onMouseEnter={(event) => handleMouseEnter(geo, event)}
                       onMouseLeave={handleMouseLeave}
+                      onClick={() => handleStateClick(geo)}
                     />
                   );
                 })
@@ -303,10 +331,10 @@ export default function MapVisualization({ abortionStats, isLoading, dataView }:
           
           {tooltipVisible && tooltipContent && (
             <div 
-              className="absolute p-2.5 bg-white border border-gray-200 rounded shadow-lg z-50 max-w-[300px]"
+              className="fixed p-2.5 bg-white border border-gray-200 rounded shadow-lg z-50 max-w-[300px]"
               style={{
                 left: `${tooltipPosition.x}px`,
-                top: `${tooltipPosition.y - 10}px`,
+                top: `${tooltipPosition.y}px`,
                 pointerEvents: 'none',
                 opacity: 1
               }}
